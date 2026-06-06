@@ -23,11 +23,13 @@ const RECONNECT_TIMEOUT_MS = 60_000; // 60 s pour se reconnecter
 const app    = express();
 const server = http.createServer(app);
 
-// Servir le dossier public (HTML, CSS, JS client)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Route de santé pour Render
+// Route de santé (AVANT le static middleware)
 app.get('/health', (_req, res) => res.send('OK'));
+
+// Servir le dossier public (HTML, CSS, JS client)
+const publicDir = path.join(__dirname, 'public');
+app.use(express.static(publicDir));
+console.log(`[Static] Dossier servi : ${publicDir}`);
 
 // ─── SOCKET.IO ────────────────────────────────────────────────────────────────
 const io = new Server(server, {
