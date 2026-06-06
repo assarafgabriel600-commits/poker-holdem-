@@ -23,13 +23,28 @@ const RECONNECT_TIMEOUT_MS = 60_000; // 60 s pour se reconnecter
 const app    = express();
 const server = http.createServer(app);
 
-// Route de santé (AVANT le static middleware)
+// ─── ROUTES STATIQUES ─────────────────────────────────────────────────────────
+
+// Route de santé (en premier, avant tout le reste)
 app.get('/health', (_req, res) => res.send('OK'));
 
-// Servir le dossier public (HTML, CSS, JS client)
+// Servir les fichiers statiques (CSS, JS, images…)
 const publicDir = path.join(__dirname, 'public');
 app.use(express.static(publicDir));
 console.log(`[Static] Dossier servi : ${publicDir}`);
+
+// Routes HTML explicites (fallback robuste si express.static ne les trouve pas)
+app.get('/', (_req, res) =>
+  res.sendFile(path.join(publicDir, 'index.html'))
+);
+app.get('/game.html', (_req, res) =>
+  res.sendFile(path.join(publicDir, 'game.html'))
+);
+
+// Catch-all : toute URL inconnue renvoie l'accueil
+app.get('*', (_req, res) =>
+  res.sendFile(path.join(publicDir, 'index.html'))
+);
 
 // ─── SOCKET.IO ────────────────────────────────────────────────────────────────
 const io = new Server(server, {
