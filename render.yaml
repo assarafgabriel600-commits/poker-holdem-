@@ -1,0 +1,11 @@
+# render.yaml — Configuration déploiement Render (offre gratuite)
+services:
+  - type: web
+    name: poker-texas-holdem
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production

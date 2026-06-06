@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Poker Texas Hold'em</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="home-page">
+
+  <!-- Titre -->
+  <h1 class="home-title">
+    ♠ Texas Hold'em ♥<br>
+    <span style="font-size:0.55em; letter-spacing:1px;">Heads-Up Poker</span>
+  </h1>
+
+  <!-- Portefeuille -->
+  <div class="wallet-badge" id="home-wallet">Portefeuille : 0 💰</div>
+
+  <!-- Boutons principaux -->
+  <div class="home-buttons">
+    <button class="home-btn btn-local"  id="btn-local">🖥️ Mode Local</button>
+    <button class="home-btn btn-online" id="btn-online">🌐 Mode En Ligne</button>
+  </div>
+
+  <p style="color: #888; font-size: 0.85rem; text-align:center; max-width:380px;">
+    Mode Local : vous affrontez l'IA directement dans le navigateur.<br>
+    Mode En Ligne : créez un salon et partagez le code avec un ami.
+  </p>
+
+  <!-- ── Modal Mode En Ligne ───────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="online-modal">
+    <div class="modal">
+      <h2>🌐 Mode En Ligne</h2>
+
+      <button class="modal-btn modal-btn-close" id="modal-close">✕ Fermer</button>
+
+      <!-- Créer une partie -->
+      <div class="modal-section">
+        <label>Créer une nouvelle partie</label>
+        <button class="modal-btn modal-btn-create" id="modal-create">
+          ➕ Créer un salon
+        </button>
+      </div>
+
+      <div class="modal-divider">ou</div>
+
+      <!-- Rejoindre une partie -->
+      <div class="modal-section">
+        <label for="modal-code-input">Rejoindre avec un code</label>
+        <input
+          type="text"
+          id="modal-code-input"
+          placeholder="ABCD"
+          maxlength="6"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button class="modal-btn modal-btn-join" id="modal-join">
+          🚪 Rejoindre
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Afficher le portefeuille ──────────────────────────────────────────────
+    const wallet = parseInt(localStorage.getItem('pokerWallet') || '0');
+    document.getElementById('home-wallet').textContent = `Portefeuille : ${wallet} 💰`;
+
+    // ── Mode Local → rediriger vers game.html ─────────────────────────────────
+    document.getElementById('btn-local').addEventListener('click', () => {
+      window.location.href = 'game.html?mode=local';
+    });
+
+    // ── Mode En Ligne → ouvrir la modal ───────────────────────────────────────
+    document.getElementById('btn-online').addEventListener('click', () => {
+      document.getElementById('online-modal').classList.add('show');
+    });
+
+    document.getElementById('modal-close').addEventListener('click', () => {
+      document.getElementById('online-modal').classList.remove('show');
+    });
+
+    // Créer un salon → rediriger en mode online (la création se fait dans game.html)
+    document.getElementById('modal-create').addEventListener('click', () => {
+      window.location.href = 'game.html?mode=online&action=create';
+    });
+
+    // Rejoindre un salon
+    document.getElementById('modal-join').addEventListener('click', () => {
+      const code = document.getElementById('modal-code-input').value.trim().toUpperCase();
+      if (code.length < 4) {
+        alert('Entrez un code valide (4 à 6 lettres).');
+        return;
+      }
+      window.location.href = `game.html?mode=online&action=join&code=${code}`;
+    });
+
+    // Valider avec Entrée
+    document.getElementById('modal-code-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('modal-join').click();
+    });
+
+    // Fermer la modal en cliquant hors du cadre
+    document.getElementById('online-modal').addEventListener('click', e => {
+      if (e.target === document.getElementById('online-modal'))
+        document.getElementById('online-modal').classList.remove('show');
+    });
+  </script>
+</body>
+</html>

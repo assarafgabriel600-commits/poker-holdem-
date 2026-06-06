@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Poker — Table</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="game-page">
+
+  <!-- ── Barre du haut ─────────────────────────────────────────────────────── -->
+  <header class="top-bar">
+    <span class="top-bar-title">♠ Texas Hold'em ♥</span>
+    <span id="hand-number"></span>
+    <span id="wallet-display">Portefeuille : 0 💰</span>
+    <button class="btn-home" onclick="window.location.href='index.html'">⬅ Menu</button>
+  </header>
+
+  <!-- ── Table de poker ────────────────────────────────────────────────────── -->
+  <main class="table-area" id="table-area">
+
+    <!-- Overlay "en attente" (mode en ligne) -->
+    <div id="waiting-overlay">
+      <div class="spinner"></div>
+      <p id="waiting-msg">En attente…</p>
+    </div>
+
+    <!-- ── Zone adversaire (haut) ──────────────────────────────────────────── -->
+    <section class="player-zone" id="opp-zone">
+      <div class="player-info">
+        <div class="dealer-chip" id="dealer-opp" style="display:none">D</div>
+        <span class="player-name" id="opp-name">Adversaire</span>
+        <span class="player-stack" id="opp-stack">100 🪙</span>
+        <span class="player-bet"   id="opp-bet"></span>
+        <span class="player-status" id="opp-status"></span>
+      </div>
+      <div class="cards-row" id="opp-cards" data-slots="2"></div>
+    </section>
+
+    <!-- ── Centre : cartes communes + pot ─────────────────────────────────── -->
+    <section class="table-center">
+      <div class="cards-row" id="community-cards" data-slots="5"></div>
+      <div class="pot-area">
+        <span class="pot-label">POT</span>
+        <span id="pot-amount">0 🪙</span>
+      </div>
+      <div class="turn-indicator" id="turn-indicator">Chargement…</div>
+    </section>
+
+    <!-- ── Zone joueur humain (bas) ────────────────────────────────────────── -->
+    <section class="player-zone" id="my-zone">
+      <div class="cards-row" id="my-cards" data-slots="2"></div>
+      <div class="player-info">
+        <div class="dealer-chip" id="dealer-me" style="display:none">D</div>
+        <span class="player-name" id="my-name">Vous</span>
+        <span class="player-stack" id="my-stack">100 🪙</span>
+        <span class="player-bet"   id="my-bet"></span>
+        <span class="player-status" id="my-status"></span>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Zone d'actions ────────────────────────────────────────────────────── -->
+  <footer class="action-area">
+    <div id="action-buttons"></div>
+  </footer>
+
+  <!-- ── Notification flottante ────────────────────────────────────────────── -->
+  <div id="notification"></div>
+
+  <!-- ── Lobby mode en ligne ───────────────────────────────────────────────── -->
+  <div id="online-lobby">
+    <div class="lobby-box">
+      <h2>🌐 Mode En Ligne</h2>
+
+      <!-- Code à partager (après création) -->
+      <div id="room-code-display">
+        Partagez ce code avec votre adversaire :
+        <span id="room-code-value"></span>
+      </div>
+
+      <div class="lobby-section">
+        <button class="lobby-btn lobby-btn-create" id="btn-create-room">
+          ➕ Créer un salon
+        </button>
+      </div>
+
+      <div class="lobby-divider">ou</div>
+
+      <div class="lobby-section">
+        <label for="room-code-input">Entrez le code du salon</label>
+        <input
+          type="text"
+          id="room-code-input"
+          placeholder="ABCD"
+          maxlength="6"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button class="lobby-btn lobby-btn-join" id="btn-join-room">
+          🚪 Rejoindre
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Panneau fin de partie ─────────────────────────────────────────────── -->
+  <div id="game-over-panel">
+    <div id="go-title"></div>
+    <div id="go-subtitle"></div>
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
+      <button class="go-btn go-btn-rematch" id="btn-rematch">🔄 Revanche</button>
+      <button class="go-btn go-btn-menu"    onclick="window.location.href='index.html'">
+        🏠 Menu
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ SCRIPTS ═══════════════════════════════════════════════════════════ -->
+
+  <!-- Moteur de poker partagé -->
+  <script src="js/poker-engine.js"></script>
+  <!-- IA (uniquement utile en mode local, inoffensif en mode en ligne) -->
+  <script src="js/ai.js"></script>
+  <!-- Interface graphique -->
+  <script src="js/ui.js"></script>
+  <!-- Modes de jeu -->
+  <script src="js/local-game.js"></script>
+  <script src="js/online-game.js"></script>
+  <!-- Socket.IO (sera servi par le serveur ; inoffensif si absent) -->
+  <script src="/socket.io/socket.io.js" onerror="window._socketMissing=true"></script>
+
+  <script>
+    // ── Lire les paramètres d'URL ─────────────────────────────────────────────
+    const params = new URLSearchParams(window.location.search);
+    const mode   = params.get('mode') || 'local';
+    const action = params.get('action');
+    const code   = params.get('code');
+
+    // Afficher le portefeuille
+    UI.updateWallet(parseInt(localStorage.getItem('pokerWallet') || '0'));
+
+    // ── Bouton revanche ───────────────────────────────────────────────────────
+    document.getElementById('btn-rematch').addEventListener('click', () => {
+      UI.hideGameOver();
+      if (mode === 'local') {
+        LocalGame.init();
+      } else {
+        OnlineGame.init();
+      }
+    });
+
+    // ── Lancer le bon mode ────────────────────────────────────────────────────
+    if (mode === 'local') {
+      // Mode local : aucune socket nécessaire
+      document.getElementById('opp-name').textContent = 'IA';
+      LocalGame.init();
+
+    } else {
+      // Mode en ligne : initialiser Socket.IO
+      if (window._socketMissing) {
+        alert('Impossible de se connecter au serveur. Êtes-vous en ligne ?');
+      } else {
+        // Pré-remplir le code si fourni dans l'URL
+        if (code) {
+          document.getElementById('room-code-input').value = code;
+        }
+        OnlineGame.init();
+
+        // Déclencher automatiquement l'action venant de l'URL
+        if (action === 'create') {
+          // Attendre que le socket soit connecté
+          setTimeout(() => {
+            document.getElementById('btn-create-room').click();
+          }, 300);
+        } else if (action === 'join' && code) {
+          setTimeout(() => {
+            document.getElementById('btn-join-room').click();
+          }, 300);
+        }
+      }
+    }
+  </script>
+</body>
+</html>

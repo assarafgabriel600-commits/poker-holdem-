@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(node -e ' *)",
+      "Bash(node server.js)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
