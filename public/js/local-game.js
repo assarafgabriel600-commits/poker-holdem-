@@ -9,26 +9,29 @@ const LocalGame = (() => {
 
   // ─── CONFIGURATION ─────────────────────────────────────────────────────────
   const CONFIG = {
-    smallBlind:    1,
-    bigBlind:      2,
-    startingStack: 100,
-    AI_DELAY_MS:   1200,  // délai avant que l'IA joue (ms)
-    PHASE_DELAY_MS: 800,  // délai entre les phases
+    smallBlind:     1,
+    bigBlind:       2,
+    startingStack:  100,
+    AI_DELAY_MS:    1000,   // délai avant que l'IA joue
+    PHASE_DELAY_MS: 700,    // délai entre les phases
+    NEXT_HAND_MS:   3200,   // délai avant la prochaine main
   };
 
-  const PLAYER_INDEX = 0; // L'humain est toujours le joueur 0
+  const PLAYER_INDEX = 0;
   const AI_INDEX     = 1;
 
-  let state    = null;   // état courant du jeu
-  let busy     = false;  // verrou pour éviter les double-clics
+  let state = null;
+  let busy  = false;
 
   // ─── DÉMARRAGE ─────────────────────────────────────────────────────────────
 
   function init() {
     state = PokerEngine.createGame(CONFIG);
-    UI.updateWallet(getWallet());
+    busy  = false;
+    UI.updateWallet(_getWallet());
     UI.hideGameOver();
     UI.setWaiting(false);
+    UI.clearNotif();
     startNewHand();
   }
 
@@ -38,25 +41,21 @@ const LocalGame = (() => {
     state = PokerEngine.startHand(state);
 
     UI.renderTable(state, PLAYER_INDEX);
+    UI.clearActions();
     UI.clearNotif();
 
     // Notifier les blinds
-    const evBlinds = state.events.filter(e => e.type === 'blind');
-    evBlinds.forEach(b => {
-      const who = b.player === PLAYER_INDEX ? 'Vous' : 'L\'IA';
-      const lbl = b.blind === 'small' ? 'petite blind' : 'grosse blind';
-      UI.notify(`${who} poste la ${lbl} : ${b.amount} jeton(s)`, 'info', 2000);
-    });
+    for (const ev of state.events.filter(e => e.type === 'blind')) {
+      const who = ev.player === PLAYER_INDEX ? 'Vous' : 'L\'IA';
+      const lbl = ev.blind === 'small' ? 'petite blind' : 'grosse blind';
+      UI.notify(`${who} poste la ${lbl} : ${ev.amount} 🪙`, 'info', 2000);
+    }
 
-    // Si des cartes communes ont été distribuées immédiatement (double all-in)
-    processEvents(state.events);
-
-    setTimeout(promptOrAI, 600);
+    setTimeout(promptOrAI, 500);
   }
 
   // ─── BOUCLE PRINCIPALE ─────────────────────────────────────────────────────
 
-  /** Affiche les boutons si c'est au joueur, sinon fait jouer l'IA */
   function promptOrAI() {
     if (busy) return;
     if (!['preflop','flop','turn','river'].includes(state.phase)) return;
@@ -64,11 +63,8 @@ const LocalGame = (() => {
     UI.renderTable(state, PLAYER_INDEX);
 
     if (state.currentPlayer === PLAYER_INDEX) {
-      // Tour du joueur humain
-      const legal = PokerEngine.getLegalActions(state);
-      UI.renderActions(legal, handlePlayerAction);
+      UI.renderActions(PokerEngine.getLegalActions(state), onPlayerAction);
     } else {
-      // Tour de l'IA
       UI.clearActions();
       setTimeout(runAI, CONFIG.AI_DELAY_MS);
     }
@@ -76,7 +72,7 @@ const LocalGame = (() => {
 
   // ─── ACTION DU JOUEUR ──────────────────────────────────────────────────────
 
-  function handlePlayerAction({ action, amount }) {
+  function onPlayerAction({ action, amount }) {
     if (busy) return;
     busy = true;
     UI.clearActions();
@@ -91,8 +87,7 @@ const LocalGame = (() => {
     }
 
     UI.renderTable(state, PLAYER_INDEX);
-    processEvents(state.events);
-    afterAction();
+    _afterAction();
   }
 
   // ─── ACTION DE L'IA ────────────────────────────────────────────────────────
@@ -104,18 +99,16 @@ const LocalGame = (() => {
     const decision = PokerAI.decide(state, AI_INDEX);
     if (!decision) { busy = false; return; }
 
-    // Afficher ce que fait l'IA
-    const labels = {
+    // Construire le message affiché
+    const msgs = {
       fold:  "L'IA se couche",
       check: "L'IA checke",
-      call:  `L'IA suit`,
-      bet:   `L'IA mise`,
-      raise: `L'IA relance`,
+      call:  `L'IA suit (${state.toCall - state.players[AI_INDEX].currentBet})`,
+      bet:   `L'IA mise (${decision.amount})`,
+      raise: `L'IA relance (${decision.amount})`,
       allin: "L'IA va au TAPIS !"
     };
-    let msg = labels[decision.action] || decision.action;
-    if (decision.amount) msg += ` (${decision.amount})`;
-    UI.notify(msg, 'info', 2500);
+    UI.notify(msgs[decision.action] || decision.action, 'info', 2000);
 
     try {
       state = PokerEngine.performAction(state, decision.action, decision.amount);
@@ -126,97 +119,88 @@ const LocalGame = (() => {
     }
 
     UI.renderTable(state, PLAYER_INDEX);
-    processEvents(state.events);
-    afterAction();
+    _afterAction();
   }
 
-  // ─── APRÈS CHAQUE ACTION ───────────────────────────────────────────────────
+  // ─── TRAITEMENT APRÈS CHAQUE ACTION ───────────────────────────────────────
 
-  function afterAction() {
-    const phase = state.phase;
-
-    if (phase === 'showdown' || phase === 'game_over') {
-      handleEndOfHand();
+  function _afterAction() {
+    // ── Fin de main : pot attribué (fold, showdown, égalité) ─────────────────
+    const potEv = state.events.find(e => e.type === 'pot_awarded');
+    if (potEv) {
+      _handleEndOfHand(potEv);
       return;
     }
 
-    // Changement de phase → afficher les nouvelles cartes communes
+    // ── Nouvelle phase (flop / turn / river) ──────────────────────────────────
     const phaseEv = state.events.find(e => e.type === 'phase');
     if (phaseEv) {
-      const labels = { flop: 'Flop', turn: 'Turn', river: 'River' };
-      UI.notify(`--- ${labels[phaseEv.phase] || phaseEv.phase} ---`, 'info', 1500);
+      const labels = { flop: '🃏 Flop', turn: '🃏 Turn', river: '🃏 River' };
+      UI.notify(labels[phaseEv.phase] || phaseEv.phase, 'info', 1500);
       setTimeout(() => {
         UI.renderTable(state, PLAYER_INDEX);
         busy = false;
         promptOrAI();
       }, CONFIG.PHASE_DELAY_MS);
-    } else {
-      busy = false;
-      promptOrAI();
+      return;
     }
+
+    // ── Simple action (pas de changement de phase) ────────────────────────────
+    busy = false;
+    promptOrAI();
   }
 
   // ─── FIN DE MAIN ───────────────────────────────────────────────────────────
 
-  function handleEndOfHand() {
+  function _handleEndOfHand(potEv) {
     UI.clearActions();
-    UI.renderTable(state, PLAYER_INDEX); // révèle les cartes si showdown
 
-    // Construire le message de résultat
-    const potEv     = state.events.find(e => e.type === 'pot_awarded');
+    // Révéler les cartes de l'adversaire si c'était un showdown
     const showdownEv = state.events.find(e => e.type === 'showdown');
-
     if (showdownEv) {
-      // Abattage : afficher les mains
-      showdownEv.players.forEach(p => {
-        const who  = p.index === PLAYER_INDEX ? 'Vous' : "L'IA";
-        UI.notify(`${who} : ${p.bestHand.name}`, 'info', 0);
-      });
+      // Forcer phase='showdown' pour que renderTable révèle les cartes adverses
+      UI.renderTable(Object.assign({}, state, { phase: 'showdown' }), PLAYER_INDEX);
+
+      // Afficher les deux mains
+      const p0 = showdownEv.players.find(p => p.index === PLAYER_INDEX);
+      const p1 = showdownEv.players.find(p => p.index === AI_INDEX);
+      if (p0) UI.notify(`Votre main : ${p0.bestHand.name}`, 'info', 0);
+      setTimeout(() => {
+        if (p1) UI.notify(`Main IA : ${p1.bestHand.name}`, 'info', 0);
+      }, 900);
     }
 
+    // Afficher le résultat après un court délai
     setTimeout(() => {
-      if (potEv) {
-        if (potEv.tie) {
-          UI.notify('Égalité ! Le pot est partagé.', 'info', 3000);
-        } else if (potEv.player === PLAYER_INDEX) {
-          UI.notify(`Vous remportez ${potEv.amount} jetons ! 🎉`, 'win', 3000);
-        } else {
-          UI.notify(`L'IA remporte ${potEv.amount} jetons.`, 'lose', 3000);
-        }
+      if (potEv.tie) {
+        UI.notify('Égalité ! Le pot est partagé.', 'info', 4000);
+      } else if (potEv.player === PLAYER_INDEX) {
+        UI.notify(`🏆 Vous remportez ${potEv.amount} jetons !`, 'win', 4000);
+      } else {
+        UI.notify(`L'IA remporte ${potEv.amount} jetons.`, 'lose', 4000);
       }
 
       // Fin de partie ?
       const goEv = state.events.find(e => e.type === 'game_over');
       if (goEv) {
         const iWon = goEv.winner === PLAYER_INDEX;
-        if (iWon) addToWallet(5000);
+        if (iWon) _addToWallet(5000);
         setTimeout(() => {
-          UI.showGameOver(iWon, getWallet());
-          UI.updateWallet(getWallet());
+          UI.showGameOver(iWon, _getWallet());
+          UI.updateWallet(_getWallet());
         }, 2500);
       } else {
-        // Prochaine main automatiquement
-        setTimeout(startNewHand, 3000);
+        setTimeout(startNewHand, CONFIG.NEXT_HAND_MS);
       }
+
       busy = false;
-    }, 800);
+    }, showdownEv ? 1400 : 500);
   }
 
-  // ─── TRAITEMENT DES ÉVÉNEMENTS ─────────────────────────────────────────────
+  // ─── PORTEFEUILLE ──────────────────────────────────────────────────────────
 
-  /** Traite les événements produits par le moteur (pour les messages) */
-  function processEvents(events) {
-    for (const ev of events) {
-      if (ev.type === 'phase') {
-        UI.renderTable(state, PLAYER_INDEX);
-      }
-    }
-  }
-
-  // ─── PORTEFEUILLE (localStorage) ───────────────────────────────────────────
-
-  function getWallet()      { return parseInt(localStorage.getItem('pokerWallet') || '0'); }
-  function addToWallet(n)   { localStorage.setItem('pokerWallet', getWallet() + n); }
+  function _getWallet()    { return parseInt(localStorage.getItem('pokerWallet') || '0'); }
+  function _addToWallet(n) { localStorage.setItem('pokerWallet', _getWallet() + n); }
 
   // ─── API PUBLIQUE ──────────────────────────────────────────────────────────
   return { init };
