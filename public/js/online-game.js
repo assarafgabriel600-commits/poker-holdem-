@@ -113,6 +113,7 @@ const OnlineGame = (() => {
       }
 
       if (newPhase) {
+        UI.announcePhase(newPhase);
         const labels = { flop: '🃏 Flop', turn: '🃏 Turn', river: '🃏 River' };
         UI.notify(labels[newPhase] || newPhase, 'info', 1500);
       }
@@ -141,7 +142,7 @@ const OnlineGame = (() => {
 
       setTimeout(() => {
         if (tie)              UI.notify('Égalité ! Pot partagé.',        'info', 4000);
-        else if (winner === myIndex) UI.notify(`🏆 Vous gagnez ${amount} jetons !`, 'win',  4000);
+        else if (winner === myIndex) { UI.triggerWinBurst(); UI.notify(`🏆 Vous gagnez ${amount} jetons !`, 'win', 4000); }
         else                  UI.notify(`Adversaire gagne ${amount} jetons.`,  'lose', 4000);
       }, 1400);
     });

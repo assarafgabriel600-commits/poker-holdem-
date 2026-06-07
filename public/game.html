@@ -41,8 +41,12 @@
     <section class="table-center">
       <div class="cards-row" id="community-cards" data-slots="5"></div>
       <div class="pot-area">
-        <span class="pot-label">POT</span>
-        <span id="pot-amount">0 🪙</span>
+        <!-- Jetons visuels (injectés dynamiquement par ui.js) -->
+        <div id="chips-pot-row" class="pot-chips-row"></div>
+        <div class="pot-amount-row">
+          <span class="pot-label">POT</span>
+          <span id="pot-amount">0 🪙</span>
+        </div>
       </div>
       <div class="turn-indicator" id="turn-indicator">Chargement…</div>
     </section>

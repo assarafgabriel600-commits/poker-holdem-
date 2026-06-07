@@ -135,6 +135,7 @@ const LocalGame = (() => {
     // ── Nouvelle phase (flop / turn / river) ──────────────────────────────────
     const phaseEv = state.events.find(e => e.type === 'phase');
     if (phaseEv) {
+      UI.announcePhase(phaseEv.phase);
       const labels = { flop: '🃏 Flop', turn: '🃏 Turn', river: '🃏 River' };
       UI.notify(labels[phaseEv.phase] || phaseEv.phase, 'info', 1500);
       setTimeout(() => {
@@ -175,6 +176,7 @@ const LocalGame = (() => {
       if (potEv.tie) {
         UI.notify('Égalité ! Le pot est partagé.', 'info', 4000);
       } else if (potEv.player === PLAYER_INDEX) {
+        UI.triggerWinBurst();
         UI.notify(`🏆 Vous remportez ${potEv.amount} jetons !`, 'win', 4000);
       } else {
         UI.notify(`L'IA remporte ${potEv.amount} jetons.`, 'lose', 4000);
